@@ -2,10 +2,17 @@
 name = "wrequest"
 version = "0.1.0"
 edition = "2021"
-
+authors = ["Juan Cáceres <cacexp@gmail.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+description = "wrequest implements HTTP Request and Response types in Rust."
+homepage = "https://github.com/cacexp/wrequest"
+repository = "https://github.com/cacexp/wrequest"
+documentation = "https://docs.rs/wrequest/"
+categories = ["network-programming", "web-programming::http-client"]
 [dependencies]
+
 wcookie = "0.1.2"
 unicase = "2.6.0"
 case_insensitive_hashmap = "1.0.0"
 json = "0.12.4"
-
