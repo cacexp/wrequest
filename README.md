@@ -2,8 +2,6 @@
 
 `wrequest` is a crate that implements Http Request and Response types written in Rust.
 
-[How to run the tests](testing.md)
-
 # Documentation
 
 Please, visit [docs.rs](https://docs.rs/wrequest/) to get access to the last version of the library documentation.

@@ -17,7 +17,6 @@ fn header1() {
     // check header is case insensitive on get
     assert_eq!(response.get_header("content-type").unwrap(), "application/json");
     // check header is case insensitive on insert
-    assert!(response.header("content-Type", "application/json"));
     assert_eq!(response.get_header("Content-type").unwrap(), "application/json");
 }
 

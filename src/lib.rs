@@ -1,4 +1,4 @@
-// Copyright 2021 Juan A. Cáceres (cacexp@gmail.com)
+// Copyright 2022 Juan A. Cáceres (cacexp@gmail.com)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,17 +19,20 @@
 //! ```
 //! use wrequest::Request;
 //! use json::object;
+//! use url::Url;
 //! 
 //! // Create a PUT https://service.com/users/ request
 //! 
-//! let mut request = Request::put("https://service.com/users/");
+//! let url = Url::parse("https://service.com/users/").unwrap();
+//! 
+//! let mut request = Request::put(&url);
 //! 
 //! // Add a ?client_id=1234 param
 //! request.param("client_id", "1234");
 //! 
-//! // Add request headers
-//! request.header("Content-Type", "application/json");
-//! request.header("Accept", "application/json");
+//! // Add request headers, they can be chained
+//! request.header("Content-Type", "application/json")
+//!        .header("Accept", "application/json");
 //! 
 //! // Add a request cookie
 //! request.cookie("session", "1234");
@@ -86,6 +89,7 @@
 
 #![allow(dead_code)]
 
+use url::Url;
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
 use std::str::from_utf8;
 use std::io::{ErrorKind, Error};
@@ -98,7 +102,7 @@ use std::ops::{Deref, DerefMut};
 
 /// `Content-Type` header name
 pub const CONTENT_TYPE: &str = "Content-Type";
-/// `Content-Type` header value for JJSON encoded in UTF-8
+/// `Content-Type` header value for JSON encoded in UTF-8
 pub const APPLICATION_JSON: &str = "application/json";
 /// `Accept` header name
 pub const ACCEPT: &str = "Accept";
@@ -194,10 +198,11 @@ impl HttpMessage {
         }
     }
 
-    /// Sets a header by key=value, returns `true` if there was a previous header and its value is overrided
-    pub fn header<K, V>(&mut self, key: K, value: V) -> bool
+    /// Sets a header by key=value, returns `&mut Self` to allow function chaining
+    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut HttpMessage
     where K: Into<String>, V: Into<String> {
-        self.headers.insert(CaseInsensitiveString::new(key.into()), value.into()).is_some()
+        self.headers.insert(CaseInsensitiveString::new(key.into()), value.into());
+        self
     }
 
     /// Gets a header by key, returns `None` if not found
@@ -223,8 +228,9 @@ impl HttpMessage {
     }
 
     /// Sets a single body
-    pub fn body(&mut self, data: Vec<u8>) {
+    pub fn body(&mut self, data: Vec<u8>) -> &mut Self {
         self.body = MessageBody::Single(data);
+        self
     }
 
     /// Gets body data if any, returns `None` if there is no single body
@@ -237,10 +243,11 @@ impl HttpMessage {
     }
 
      /// Sets a json object as request body. The `data` object is marshaled into a buffer using UTF8 coding.
-     pub fn json(&mut self, data: &JsonValue) {
+     pub fn json(&mut self, data: &JsonValue) -> &mut Self {
         let pretty = data.pretty(4);
         self.body = MessageBody::Single(pretty.into_bytes());
         self.header(CONTENT_TYPE, APPLICATION_JSON);
+        self
     }
 
     /// Checks if the Response has body and tries to parse as a `json::JsonValue'
@@ -287,7 +294,7 @@ pub struct Request {
     /// HTTP method
     method: HttpMethod,    
     /// Target URL
-    url: String,  
+    url: Url,  
     /// Request Cookies
     cookies: HashMap<String, String>,
     /// Request params
@@ -297,68 +304,58 @@ pub struct Request {
 impl Request {
 
     // Hidden constructor
-    fn new<S>(method: HttpMethod, url: S) -> Request 
-    where S: Into<String> {
+    pub fn new(method: HttpMethod, url: &Url) -> Request {
         Request {
             base: HttpMessage::new(),
             method,
-            url: url.into(),
+            url: url.clone(),
             cookies: HashMap::new(),
             params: HashMap::new()
         }
     }
 
     /// Creates a `CONNECT` request builder
-    pub fn connect<S>(url: S) -> Request 
-        where S : Into<String> {
+    pub fn connect(url: &Url) -> Request {
         Self::new(HttpMethod::CONNECT, url)
     }
 
     /// Creates a `DELETE` request builder
-    pub fn delete<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn delete(url: &Url) -> Request {
         Self::new(HttpMethod::DELETE, url)
     }
 
     /// Creates a `GET` request builder
-    pub fn get<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn get(url: &Url) -> Request {
         Self::new(HttpMethod::GET, url)
     }
 
     /// Creates a `HEAD` request builder
-    pub fn head<S>(url: S) -> Request 
-    where S : Into<String>  {
+    pub fn head(url: &Url) -> Request {
         Self::new(HttpMethod::HEAD, url)
     }
 
     /// Creates a `OPTIONS` request builder
-    pub fn options<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn options(url: &Url) -> Request {
         Self::new(HttpMethod::OPTIONS, url)
     }
 
     /// Creates a `PATCH` request builder
-    pub fn patch<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn patch(url: &Url) -> Request {
         Self::new(HttpMethod::PATCH, url)
     }
 
     /// Creates a `POST` request builder
-    pub fn post<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn post(url: &Url) -> Request {
         Self::new(HttpMethod::POST, url)
     }
 
     /// Creates a `PUT` request builder
-    pub fn put<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn put(url: &Url) -> Request {
         Self::new(HttpMethod::PUT, url)
     }
     
     /// Creates a `TRACE` request builder
-    pub fn trace<S>(url: S) -> Request 
-    where S : Into<String> {
+    pub fn trace(url: &Url) -> Request {
         Self::new(HttpMethod::TRACE, url)
     }
 
@@ -368,16 +365,16 @@ impl Request {
     }
 
     /// Gets the target URL
-    pub fn url(&self) -> &str {
-        self.url.as_str()
+    pub fn url(&self) -> &Url {
+        &self.url
     }    
 
-    /// Sets a Cookie, returns `true` if a cookie value is overriden
-    /// 
+    /// Sets a Cookie, returns `&mut Self` for function chaining
     /// Cookie names are case-sensitive.
-    pub fn cookie<K, V>(&mut self, key: K, value: V) -> bool 
+    pub fn cookie<K, V>(&mut self, key: K, value: V) -> &mut Self 
     where K: Into<String>, V: Into<String> {
-        self.cookies.insert(key.into(), value.into()).is_some()
+        self.cookies.insert(key.into(), value.into());
+        self
     }
 
     /// Gets a `(&key, &value)` vector of request cookies
@@ -386,9 +383,10 @@ impl Request {
     }
 
     /// Sets a request query parameter, returns `true` if a param value is overriden
-    pub fn param<K, V>(&mut self, key: K, value: V) -> bool 
+    pub fn param<K, V>(&mut self, key: K, value: V) -> &mut Self 
     where K: Into<String>, V: Into<String> {
-        self.params.insert(key.into(), value.into()).is_some()
+        self.params.insert(key.into(), value.into());
+        self
     }
 
     /// Gets a param value, returns `None` if there is no param with this `key`
@@ -550,8 +548,9 @@ impl Response {
     }
 
     /// Set Response cookie
-    pub fn cookie(&mut self, value: SetCookie) {
-        self.cookies.push(value)
+    pub fn cookie(&mut self, value: SetCookie) -> &mut Self {
+        self.cookies.push(value);
+        self
     }
 
     /// Get Response SetCookies
@@ -560,8 +559,9 @@ impl Response {
     }
 
     /// Adds an Authorization header guide
-    pub fn auth<S: Into<String>>(&mut self, auth: S) {
+    pub fn auth<S: Into<String>>(&mut self, auth: S) -> &mut Self {
         self.auth.push(auth.into());
+        self
     }
 
     /// Get Request Authorization headers
@@ -570,8 +570,9 @@ impl Response {
     }
 
     /// Adds a Proxy Authorization header guide
-    pub fn proxy_auth<S: Into<String>>(&mut self, auth: S) {
+    pub fn proxy_auth<S: Into<String>>(&mut self, auth: S) -> &mut Self {
         self.proxy_auth.push(auth.into());
+        self
     }
 
     /// Get Request Proxy Authorization headers
