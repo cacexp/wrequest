@@ -19,23 +19,20 @@
 //! ```
 //! use wrequest::Request;
 //! use json::object;
-//! use url::Url;
 //! 
 //! // Create a PUT https://service.com/users/ request
 //! 
-//! let url = Url::parse("https://service.com/users/").unwrap();
-//! 
-//! let mut request = Request::put(&url);
+//! let mut request = Request::put("https://service.com/users/");
 //! 
 //! // Add a ?client_id=1234 param
-//! request.param("client_id", "1234");
+//! request.insert_param("client_id", "1234");
 //! 
-//! // Add request headers, they can be chained
-//! request.header("Content-Type", "application/json")
-//!        .header("Accept", "application/json");
+//! // Add request headers
+//! request.insert_header("Content-Type", "application/json")
+//!        .insert_header("Accept", "application/json");
 //! 
 //! // Add a request cookie
-//! request.cookie("session", "1234");
+//! request.insert_cookie("session", "1234");
 //! 
 //! // Add a JSON Object as request body
 //! let data = object! {
@@ -44,9 +41,9 @@
 //! };
 //! 
 //! // JSON Object is encoded at the body
-//! request.json(&data);
+//! request.set_json(&data);
 //! 
-//! assert_eq!(request.get_header("Content-Type").unwrap(), "application/json" );
+//! assert_eq!(request.headers().get("Content-Type").unwrap(), "application/json" );
 //! 
 //! ```
 //! ## Response creation
@@ -63,7 +60,7 @@
 //! let mut response = Response::new(wrequest::HTTP_200_OK);
 //! 
 //! // Add response headers
-//! response.header("Content-Type", "application/json");
+//! response.insert_header("Content-Type", "application/json");
 //! 
 //! // Add a JSON Object as request body
 //! let data = object! {
@@ -74,12 +71,12 @@
 //! // Add a `Set-Cookie` header
 //! let mut cookie = SetCookie::new("session", "1234");
 //! cookie.max_age = Some(Duration::new(3600, 0));
-//! response.cookie(cookie);
+//! response.insert_cookie(cookie);
 //! 
 //! // JSON Object is encoded at the body
-//! response.json(&data);
+//! response.set_json(&data);
 //! 
-//! assert_eq!(response.get_header("Content-Type").unwrap(), "application/json" );
+//! assert_eq!(response.headers().get("Content-Type").unwrap(), "application/json" );
 //! 
 //! ```
 //!  
@@ -89,15 +86,15 @@
 
 #![allow(dead_code)]
 
-use url::Url;
+use unicase::UniCase;
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
 use std::str::from_utf8;
 use std::io::{ErrorKind, Error};
 use json::JsonValue;
 use std::fmt;
 use std::collections::HashMap;
+use std::iter::Iterator;
 use wcookie::SetCookie;
-use unicase::UniCase;
 use std::ops::{Deref, DerefMut};
 
 /// `Content-Type` header name
@@ -149,9 +146,74 @@ impl MessageBody {
     }
 }
 
-/// Case-insensitive string
-type CaseInsensitiveString = UniCase<String>;
-type Headers = CaseInsensitiveHashMap<String>;
+/// Map of HTTP message headers. Header keys are case-insensitive.
+pub struct HeaderMap {
+    map : CaseInsensitiveHashMap<String>
+}
+
+impl HeaderMap {
+    /// Constructor
+    pub fn new() -> HeaderMap {
+        HeaderMap {
+            map: CaseInsensitiveHashMap::new()
+        }
+    }
+
+    /// Insert a header with `key` and `value`. Returns `true` if there was a previous header with the same `key`.
+    pub fn insert<K,V>(&mut self, key: K, value: V) -> bool
+    where K: Into<String>,
+          V: Into<String> {
+        self.map.insert(key.into(),value.into()).is_some()
+    }
+   
+    /// Returns `true` if there is a header with `key`. Note keys are case-insensitive.
+    pub fn contains_key<K>(&self, key: K) -> bool
+    where
+        K: Into<String>
+    {
+        self.map.contains_key(key.into())
+    }
+
+    /// Gets a reference to the header value if any.
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.map.get(key).map(|s| s.as_str())
+    }
+
+    /// Gets an iterator to a tuple of `(key, value)`
+    pub fn iter(&self) -> HeaderIter {
+        HeaderIter {
+            iter: self.map.iter()
+        }
+    }
+}
+
+impl From<Vec<(String, String)>> for HeaderMap {
+    ///Converts a `Vec<(String, String)>` to a `HeaderMap`. It takes ownership of contained `String` values.
+    fn from(value: Vec<(String, String)>) -> Self { 
+        let mut owned = value;
+        let mut result = HeaderMap::new();
+        loop {
+            if let Some((k,v)) = owned.pop() {
+                result.insert(k,v);
+            } else {
+                break;
+            }
+        }
+
+        result
+    }
+}
+
+impl From<&Vec<(&str, &str)>> for HeaderMap {
+    ///Converts a `Vec<(&str, &str)>` to a `HeaderMap`
+    fn from(value: &Vec<(&str, &str)>) -> Self { 
+        let mut result = HeaderMap::new();
+        for (k, v) in value.iter() {
+            result.insert(*k,*v);
+        }
+        result
+    }
+}
 
 
 /// Iterator over request headers
@@ -169,6 +231,44 @@ impl<'a> Iterator for HeaderIter<'a> {
     }
 }
 
+
+/// Base struct for Request params and cookies. Keys are case-sensitive.
+pub struct KeyValueMap {
+    map : HashMap<String, String>
+}
+
+impl KeyValueMap {
+    /// Constructor
+    pub fn new() -> KeyValueMap {
+        KeyValueMap {
+            map: HashMap::new()
+        }
+    }
+    /// Insert a `key`/`value`
+    pub fn insert<K,V>(&mut self, key: K, value: V) -> bool
+    where K: Into<String>,
+          V: Into<String> {
+        self.map.insert(key.into(),value.into()).is_some()
+    }
+
+    /// Gets the `value` assotiated to a `key`, if any.
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.map.get(key).map(|s| s.as_str())
+    }
+
+    /// Checks the map contains a value with `key`
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.map.contains_key(key)
+    }
+
+    /// Generates an interator to `(key, value)`
+    pub fn iter(&self) -> KeyValueIter {
+        KeyValueIter {
+            iter: self.map.iter()
+        }
+    }
+}
+
 /// Iterator Over key/value parameters or cookies
 pub struct KeyValueIter<'a> {
     iter: std::collections::hash_map::Iter<'a, String, String>
@@ -182,39 +282,37 @@ impl<'a> Iterator for KeyValueIter<'a> {
     }
 }
 
-/// Base message for Request and Response
+/// Base message struct for Request and Response
 pub struct HttpMessage {
     /// Request headers
-    headers: Headers,
+    headers: HeaderMap,
     /// Request body (not implemented multi-part yet)
     body: MessageBody
 }
 
 impl HttpMessage {
-    fn new() -> HttpMessage {
+    /// Constructor
+    pub fn new() -> HttpMessage {
         HttpMessage {
-            headers : Headers::new(),
+            headers : HeaderMap::new(),
             body: MessageBody::None
         }
     }
 
-    /// Sets a header by key=value, returns `&mut Self` to allow function chaining
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut HttpMessage
-    where K: Into<String>, V: Into<String> {
-        self.headers.insert(CaseInsensitiveString::new(key.into()), value.into());
+    /// Inserts a header with `key` and `value`
+    pub fn insert_header(&mut self, key: &str, value: &str) -> &mut Self {
+        self.headers.insert(key, value);
         self
+    } 
+    
+    /// Gets the headers map
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
     }
 
-    /// Gets a header by key, returns `None` if not found
-    pub fn get_header(&self, key: &str) -> Option<&str> {
-        self.headers.get(key).as_ref().map(|s| s.as_str())
-    }
-
-    /// Gets an iterator over the message headers
-    pub fn header_iter(&self) -> HeaderIter {
-        HeaderIter {
-            iter: self.headers.iter()
-        }
+    /// Gets a mutable reference to the headers map
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
     }
 
     /// Checks if the request has a single body
@@ -226,15 +324,15 @@ impl HttpMessage {
     pub fn has_multipart_body(&self) -> bool {
         self.body.is_multipart()
     }
-
+    
     /// Sets a single body
-    pub fn body(&mut self, data: Vec<u8>) -> &mut Self {
+    pub fn set_body(&mut self, data: Vec<u8>) -> &mut Self {
         self.body = MessageBody::Single(data);
         self
     }
 
     /// Gets body data if any, returns `None` if there is no single body
-    pub fn get_body (&self) -> Option<&Vec<u8>> {
+    pub fn body (&self) -> Option<&Vec<u8>> {
         if let MessageBody::Single(ref body) = self.body {
             Some(body)
         } else {
@@ -243,20 +341,20 @@ impl HttpMessage {
     }
 
      /// Sets a json object as request body. The `data` object is marshaled into a buffer using UTF8 coding.
-     pub fn json(&mut self, data: &JsonValue) -> &mut Self {
+     /// Returns `true` if request body is overriden
+     pub fn set_json(&mut self, data: &JsonValue) -> &mut Self {
         let pretty = data.pretty(4);
-        self.body = MessageBody::Single(pretty.into_bytes());
-        self.header(CONTENT_TYPE, APPLICATION_JSON);
-        self
+        self.headers.insert(CONTENT_TYPE, APPLICATION_JSON);
+        self.set_body(pretty.into_bytes())
     }
 
     /// Checks if the Response has body and tries to parse as a `json::JsonValue'
-    pub fn get_json(&self) -> Result<JsonValue, Error> {
-        if ! self.has_single_body() {
+    pub fn json(&self) -> Result<JsonValue, Error> {
+        if ! self.body.is_single() {
             return Err(Error::new(ErrorKind::InvalidData, "Empty body"));
         }
 
-        let str_body = from_utf8(self.get_body().unwrap());
+        let str_body = from_utf8(self.body().unwrap());
 
         if str_body.is_err() {
             return Err(Error::new(ErrorKind::InvalidData, str_body.err().unwrap()));
@@ -281,81 +379,100 @@ impl HttpMessage {
 /// * (optional) Request headers.
 /// * (optional) Request path parameters, for example, `id` in the  URL `https://myservice.com/users?id=1111`.
 /// * (optional) Server cookies
-/// * (optional) Request body of type `Vec[u8]`
+/// * (optional) Request body
 /// 
 /// Request headers, parameters and cookies are represented by a pair of `name` and `value` strings.
 /// 
 /// For more information see [HTTP Request](https://developer.mozilla.org/en-US/docs/Web/HTTP/Messages#http_requests).
 ///
-
 pub struct Request {
     /// Base message
     base: HttpMessage,
     /// HTTP method
     method: HttpMethod,    
     /// Target URL
-    url: Url,  
+    url: String,  
     /// Request Cookies
-    cookies: HashMap<String, String>,
+    cookies: KeyValueMap,
     /// Request params
-    params: HashMap<String, String>   
+    params: KeyValueMap  
 }
 
 impl Request {
 
-    // Hidden constructor
-    pub fn new(method: HttpMethod, url: &Url) -> Request {
+    /// Hidden constructor
+    pub fn new<S>(method: HttpMethod, url: S) -> Request 
+    where S: Into<String>
+    {
         Request {
             base: HttpMessage::new(),
             method,
-            url: url.clone(),
-            cookies: HashMap::new(),
-            params: HashMap::new()
+            url: url.into(),
+            cookies: KeyValueMap::new(),
+            params: KeyValueMap::new()
         }
     }
 
     /// Creates a `CONNECT` request builder
-    pub fn connect(url: &Url) -> Request {
+    pub fn connect<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::CONNECT, url)
     }
 
     /// Creates a `DELETE` request builder
-    pub fn delete(url: &Url) -> Request {
+    pub fn delete<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::DELETE, url)
     }
 
     /// Creates a `GET` request builder
-    pub fn get(url: &Url) -> Request {
+    pub fn get<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::GET, url)
     }
 
     /// Creates a `HEAD` request builder
-    pub fn head(url: &Url) -> Request {
+    pub fn head<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::HEAD, url)
     }
 
     /// Creates a `OPTIONS` request builder
-    pub fn options(url: &Url) -> Request {
+    pub fn options<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::OPTIONS, url)
     }
 
     /// Creates a `PATCH` request builder
-    pub fn patch(url: &Url) -> Request {
+    pub fn patch<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::PATCH, url)
     }
 
     /// Creates a `POST` request builder
-    pub fn post(url: &Url) -> Request {
+    pub fn post<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::POST, url)
     }
 
     /// Creates a `PUT` request builder
-    pub fn put(url: &Url) -> Request {
+    pub fn put<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::PUT, url)
     }
     
     /// Creates a `TRACE` request builder
-    pub fn trace(url: &Url) -> Request {
+    pub fn trace<S>(url: S) -> Request 
+    where S: Into::<String>
+    {
         Self::new(HttpMethod::TRACE, url)
     }
 
@@ -364,42 +481,48 @@ impl Request {
         self.method
     }
 
+    /// Insert a request param with `key` and `value`. Param keys are case-sensitive.
+    pub fn insert_param<K, V>(&mut self, key: K, value: V) -> &mut Self 
+    where K: Into<String>,
+          V: Into<String>
+    {
+        self.params.insert(key, value);
+        self
+    }
+
+    /// Gets a params map reference
+    pub fn params(&self) -> &KeyValueMap {
+        &self.params
+    }
+
+    /// Gets a mutable params map reference
+    pub fn params_mut(&mut self) -> &mut KeyValueMap {
+        &mut self.params
+    }
+
+    /// Insert a cookie param with `key` and `value`. Param keys are case-sensitive.
+    pub fn insert_cookie<K, V>(&mut self, key: K, value: V) -> &mut Self 
+    where K: Into<String>,
+          V: Into<String>
+    {
+        self.cookies.insert(key, value);
+        self
+    }
+
+    /// Gets a cookie map reference
+    pub fn cookies(&self) -> &KeyValueMap {
+        &self.cookies
+    }
+
+    /// Gets a mutable params map reference
+    pub fn cookies_mut(&mut self) -> &mut KeyValueMap {
+        &mut self.params
+    }
+
     /// Gets the target URL
-    pub fn url(&self) -> &Url {
-        &self.url
-    }    
-
-    /// Sets a Cookie, returns `&mut Self` for function chaining
-    /// Cookie names are case-sensitive.
-    pub fn cookie<K, V>(&mut self, key: K, value: V) -> &mut Self 
-    where K: Into<String>, V: Into<String> {
-        self.cookies.insert(key.into(), value.into());
-        self
-    }
-
-    /// Gets a `(&key, &value)` vector of request cookies
-    pub fn cookies(&self) -> Vec<(&str, &str)> {
-       self.cookies.iter().map(|(n,v)| (n.as_str(), v.as_str())).collect()
-    }
-
-    /// Sets a request query parameter, returns `true` if a param value is overriden
-    pub fn param<K, V>(&mut self, key: K, value: V) -> &mut Self 
-    where K: Into<String>, V: Into<String> {
-        self.params.insert(key.into(), value.into());
-        self
-    }
-
-    /// Gets a param value, returns `None` if there is no param with this `key`
-    pub fn get_param(&self, key: &str) -> Option<&str> {
-        self.params.get(key).as_ref().map(|s| s.as_str())
-    } 
-
-    /// Gets a `(&key, &value)` iterator of request query params
-    pub fn param_iter(&self) -> KeyValueIter {
-        KeyValueIter {
-            iter: self.params.iter()
-        }
-    }
+    pub fn url(&self) -> &str {
+        self.url.as_str()
+    }  
 }
 
 impl Deref for Request {
@@ -419,7 +542,7 @@ impl DerefMut for Request {
 impl fmt::Display for Request {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{} {}", self.method, &self.url)?;
-        let headers = self.header_iter();
+        let headers = self.headers.iter();
         for (key,value) in headers {
             writeln!(f, "{}={}", key, value)?;
         }
@@ -507,6 +630,7 @@ pub const HTTP_505_HTTP_VERSION_NOT_SUPPORTED: u16 = 505;
 type SetCookies = Vec<SetCookie>;
 
 /// HTTP Response
+/// 
 /// An HTTP Response is formed by:
 /// * Status code
 /// * (optional) Response headers
@@ -546,9 +670,8 @@ impl Response {
     pub fn status_code(&self) -> HttpStatusCode {
         self.status_code
     }
-
-    /// Set Response cookie
-    pub fn cookie(&mut self, value: SetCookie) -> &mut Self {
+    /// Inserts a Response cookie
+    pub fn insert_cookie(&mut self, value: SetCookie) -> &mut Self {
         self.cookies.push(value);
         self
     }
@@ -559,25 +682,35 @@ impl Response {
     }
 
     /// Adds an Authorization header guide
-    pub fn auth<S: Into<String>>(&mut self, auth: S) -> &mut Self {
+    pub fn insert_auth_headers<S: Into<String>>(&mut self, auth: S) -> &mut Self {
         self.auth.push(auth.into());
         self
     }
 
-    /// Get Request Authorization headers
-    pub fn auth_headers(&self) -> Vec<&str> {
-        self.auth.iter().map(AsRef::as_ref).collect()
+    /// Get a reference of Response Authorization headers
+    pub fn auth_headers(&self) -> &Vec<String> {
+        &self.auth
+    }
+
+    /// Get a mutable reference of the Response Authorization headers
+    pub fn auth_headers_mut(&mut self) -> &mut Vec<String> {
+        &mut self.auth
     }
 
     /// Adds a Proxy Authorization header guide
-    pub fn proxy_auth<S: Into<String>>(&mut self, auth: S) -> &mut Self {
+    pub fn insert_proxy_auth_header<S: Into<String>>(&mut self, auth: S) -> &mut Self {
         self.proxy_auth.push(auth.into());
         self
     }
 
-    /// Get Request Proxy Authorization headers
-    pub fn proxy_auth_headers(&self) -> Vec<&str> {
-        self.proxy_auth.iter().map(AsRef::as_ref).collect()
+    /// Get a reference of Proxy Authorization headers
+    pub fn proxy_auth_headers(&self) -> &Vec<String> {
+        &self.proxy_auth
+    }
+
+    /// Get a mutable reference of Proxy Authorization headers
+    pub fn proxy_auth_headers_mut(&mut self) -> &mut Vec<String> {
+        &mut self.proxy_auth
     }
 }
 

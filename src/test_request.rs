@@ -1,89 +1,78 @@
 use crate::{HttpMethod, Request};
 use std::collections::HashMap;
 use json::object;
-use url::Url;
 
 #[test]
 fn request1() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::connect(&url);
+    let request = Request::connect("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::CONNECT);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 
 #[test]
 fn request2() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::delete(&url);
+    let request = Request::delete("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::DELETE);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 
 #[test]
 fn request3() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::get(&url);
+    let request = Request::get("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::GET);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 
 #[test]
 fn request4() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::head(&url);
+    let request = Request::head("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::HEAD);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 
 #[test]
 fn request5() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::options(&url);
+    let request = Request::options("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::OPTIONS);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 #[test]
 fn request6() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::patch(&url);
+    let request = Request::patch("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::PATCH);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 #[test]
 fn request7() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::post(&url);
+    let request = Request::post("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::POST);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 #[test]
 fn request8() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let request = Request::trace(&url);
+    let request = Request::trace("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::TRACE);
-    assert_eq!(request.url().as_str(), "http://example.com/user" );    
+    assert_eq!(request.url(), "http://example.com/user" );    
 }
 
 #[test]
 fn header1() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let mut request = Request::connect(&url);
-    request.header("Content-Type", "application/json");
+    let mut request = Request::connect("http://example.com/user");
+    request.insert_header("Content-Type", "application/json");
     // check header is case insensitive on get
-    assert_eq!(request.get_header("content-type").unwrap(), "application/json");
+    assert_eq!(request.headers().get("content-type").unwrap(), "application/json");
     // check header is case insensitive on insert
-    request.header("content-Type", "application/json");
-    assert_eq!(request.get_header("Content-type").unwrap(), "application/json");
+    request.insert_header("content-Type", "application/json");
+    assert_eq!(request.headers().get("Content-type").unwrap(), "application/json");
 }
 
 #[test]
 fn header2() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let mut request = Request::connect(&url);
-    request.header("Content-Type", "application/json")
-           .header("Accept", "application/json");
+    let mut request = Request::connect("http://example.com/user");
+    request.insert_header("Content-Type", "application/json")
+           .insert_header("Accept", "application/json");
 
-    let iter = request.header_iter();
+    let iter = request.headers().iter();
 
     let mut contained :  HashMap<&str, &str> =HashMap::new();
 
@@ -101,27 +90,28 @@ fn header2() {
 
 #[test]
 fn param1() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let mut request = Request::connect(&url);
-    request.param("id", "1234");
+    let mut request = Request::connect("http://example.com/user");
+    request.insert_param("id", "1234");
     // check paran  is case sensitive on get
-    assert!(request.get_param("ID").is_none());
-    assert_eq!(request.get_param("id").unwrap(), "1234");
+    assert!(request.params().get("ID").is_none());
+    assert!(request.params().contains_key("id"));
+    assert!(!request.params().contains_key("ID"));
+
+    assert_eq!(request.params().get("id").unwrap(), "1234");
     // check header is case sensitive on insert
-    request.param("ID", "3456");
-    assert_eq!(request.get_param("id").unwrap(), "1234");
-    request.param("id", "3456");
-    assert_eq!(request.get_param("id").unwrap(), "3456");
+    request.insert_param("ID", "3456");
+    assert_eq!(request.params().get("id").unwrap(), "1234");
+    request.insert_param("id", "3456");
+    assert_eq!(request.params().get("id").unwrap(), "3456");
 }
 
 #[test]
 fn param2() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let mut request = Request::connect(&url);
-    request.param("id", "1234")
-           .param("departament", "marketing");
+    let mut request = Request::connect("http://example.com/user");
+    request.insert_param("id", "1234")
+           .insert_param("departament", "marketing");
 
-    let iter = request.param_iter();
+    let iter = request.params().iter();
 
     let mut contained :  HashMap<&str, &str> =HashMap::new();
 
@@ -138,17 +128,17 @@ fn param2() {
 
 #[test]
 fn cookie() {
-    let url = Url::parse("http://example.com/user").unwrap();
-    let mut request = Request::connect(&url);
-    request.cookie("id", "1234");
+    let mut request = Request::connect("http://example.com/user");
+    request.insert_cookie("id", "1234");
+    assert!(request.cookies().contains_key("id"));
+    assert!(!request.cookies().contains_key("ID"));
     // Cookies are case sensitive
-    request.cookie("ID", "3456");
-    request.cookie("departament", "marketing");
-
+    request.insert_cookie("ID", "3456")
+           .insert_cookie("departament", "marketing");
 
     let mut contained :  HashMap<&str, &str> =HashMap::new();
 
-    for (name, value) in request.cookies() {
+    for (name, value) in request.cookies().iter() {
         contained.insert(name, value);
     }
 
@@ -167,15 +157,12 @@ fn  json1() {
 
     // Create a PUT https://service.com/users/ request
 
-    let url = Url::parse("http://example.com/user").unwrap();
-    let mut request = Request::connect(&url);
+    let mut request = Request::put("http://example.com/user");
 
     // Add a ?client_id=1234 param
-    request.param("client_id", "1234");
-
-    // Add request headers
-    request.header("Content-Type", "application/json");
-    request.header("Accept", "application/json");
+    request.insert_param("client_id", "1234")   
+           .insert_header("Content-Type", "application/json")
+           .insert_header("Accept", "application/json");
 
     // Add a JSON Object as request body
     let data = object! {
@@ -184,11 +171,11 @@ fn  json1() {
     };
 
     // JSON Object is encoded at the body
-    request.json(&data);
+    request.set_json(&data);
 
-    assert_eq!(request.get_header("Content-Type").unwrap(), "application/json" );
+    assert_eq!(request.headers().get("Content-Type").unwrap(), "application/json" );
 
-    let extracted = request.get_json();
+    let extracted = request.json();
 
     assert!(extracted.is_ok());
 

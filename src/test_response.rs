@@ -13,20 +13,20 @@ fn status_code() {
 #[test]
 fn header1() {
     let mut response = Response::new(HTTP_200_OK);
-    response.header("Content-Type", "application/json");
+    response.insert_header("Content-Type", "application/json");
     // check header is case insensitive on get
-    assert_eq!(response.get_header("content-type").unwrap(), "application/json");
+    assert_eq!(response.headers.get("content-type").unwrap(), "application/json");
     // check header is case insensitive on insert
-    assert_eq!(response.get_header("Content-type").unwrap(), "application/json");
+    assert_eq!(response.headers.get("Content-type").unwrap(), "application/json");
 }
 
 #[test]
 fn header2() {
     let mut response = Response::new(HTTP_200_OK);
-    response.header("Content-Type", "application/json");
-    response.header("Second", "now");
+    response.insert_header("Content-Type", "application/json");
+    response.insert_header("Second", "now");
 
-    let iter = response.header_iter();
+    let iter = response.headers().iter();
 
     let mut contained :  HashMap<&str, &str> =HashMap::new();
 
@@ -51,25 +51,24 @@ fn cookie1() {
 
     let mut response = Response::new(HTTP_200_OK);
 
-    response.cookie(cookie1);
-    response.cookie(cookie2);
+    response.insert_cookie(cookie1);
+    response.insert_cookie(cookie2);
 
-    let cookies = response.cookies();
     let mut contained:  HashSet<&str> = HashSet::new();
 
-    for c in cookies {
+    for c in  response.cookies().iter() {
         contained.insert(c.name.as_str());
     }
 
     assert!(contained.contains("session"));
-    assert!(contained.contains("session"));
+    assert!(contained.contains("Session"));
 
 }
 
 #[test]
 fn  json1() {
 
-    // Create a PUT https://service.com/users/ response
+    // Create a https://service.com/users/ response
 
     let mut response = Response::new(HTTP_200_OK);
 
@@ -80,11 +79,11 @@ fn  json1() {
     };
 
     // JSON Object is encoded at the body
-    response.json(&data);
+    response.set_json(&data);
 
-    assert_eq!(response.get_header("Content-Type").unwrap(), "application/json" );
+    assert_eq!(response.headers().get("Content-Type").unwrap(), "application/json" );
 
-    let extracted = response.get_json();
+    let extracted = response.json();
 
     assert!(extracted.is_ok());
 
