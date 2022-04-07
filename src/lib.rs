@@ -300,7 +300,9 @@ impl HttpMessage {
     }
 
     /// Inserts a header with `key` and `value`
-    pub fn insert_header(&mut self, key: &str, value: &str) -> &mut Self {
+    pub fn insert_header<K,V>(&mut self, key: K, value: V) -> &mut Self
+    where K: Into<String>,
+          V: Into<String> {
         self.headers.insert(key, value);
         self
     } 
