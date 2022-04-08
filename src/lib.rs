@@ -86,7 +86,7 @@
 
 #![allow(dead_code)]
 
-use url::{Url, ParseError};
+use url::Url;
 use unicase::UniCase;
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
 use std::str::from_utf8;
@@ -556,7 +556,7 @@ impl DerefMut for Request {
 
 impl fmt::Display for Request {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{} {}", self.method, &self.url)?;
+        writeln!(f, "{} {}", self.method, &self.target)?;
         let headers = self.headers.iter();
         for (key,value) in headers {
             writeln!(f, "{}={}", key, value)?;

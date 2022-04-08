@@ -6,53 +6,62 @@ use json::object;
 fn request1() {
     let request = Request::connect("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::CONNECT);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" ); 
+    assert!(request.url().is_some());
 }
 
 #[test]
 fn request2() {
     let request = Request::delete("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::DELETE);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
 }
 
 #[test]
 fn request3() {
     let request = Request::get("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::GET);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
 }
 
 #[test]
 fn request4() {
     let request = Request::head("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::HEAD);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
 }
 
 #[test]
 fn request5() {
     let request = Request::options("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::OPTIONS);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
 }
 #[test]
 fn request6() {
     let request = Request::patch("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::PATCH);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
 }
 #[test]
 fn request7() {
     let request = Request::post("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::POST);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
 }
 #[test]
 fn request8() {
     let request = Request::trace("http://example.com/user");
     assert_eq!(request.method(), HttpMethod::TRACE);
-    assert_eq!(request.url(), "http://example.com/user" );    
+    assert_eq!(request.target(), "http://example.com/user" );    
+}
+
+#[test]
+fn bad_request1() {
+    let request = Request::get("http//example.com/user");
+    assert_eq!(request.method(), HttpMethod::GET);
+    assert_eq!(request.target(), "http//example.com/user" ); 
+    assert!(request.url().is_none());
 }
 
 #[test]
