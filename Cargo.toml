@@ -1,6 +1,6 @@
 [package]
 name = "wrequest"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 authors = ["Juan Cáceres <cacexp@gmail.com>"]
 license = "Apache-2.0"
@@ -11,6 +11,7 @@ repository = "https://github.com/cacexp/wrequest"
 documentation = "https://docs.rs/wrequest/"
 categories = ["network-programming", "web-programming::http-client"]
 [dependencies]
+url = "2.2.2"
 wcookie = "0.1.2"
 unicase = "2.6.0"
 case_insensitive_hashmap = "1.0.0"

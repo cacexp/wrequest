@@ -86,6 +86,7 @@
 
 #![allow(dead_code)]
 
+use url::{Url, ParseError};
 use unicase::UniCase;
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
 use std::str::from_utf8;
@@ -96,6 +97,7 @@ use std::collections::HashMap;
 use std::iter::Iterator;
 use wcookie::SetCookie;
 use std::ops::{Deref, DerefMut};
+
 
 /// `Content-Type` header name
 pub const CONTENT_TYPE: &str = "Content-Type";
@@ -392,8 +394,10 @@ pub struct Request {
     base: HttpMessage,
     /// HTTP method
     method: HttpMethod,    
-    /// Target URL
-    url: String,  
+    /// Original URL as string
+    target: String,
+    //  Target URL, is none if not parsed properly
+    url: Option<Url>,
     /// Request Cookies
     cookies: KeyValueMap,
     /// Request params
@@ -403,13 +407,17 @@ pub struct Request {
 impl Request {
 
     /// Hidden constructor
-    pub fn new<S>(method: HttpMethod, url: S) -> Request 
+    pub fn new<S>(method: HttpMethod, url:S) -> Request 
     where S: Into<String>
     {
+        let target = url.into();
+        let parsed_url = Url::parse(target.as_str());
+
         Request {
             base: HttpMessage::new(),
             method,
-            url: url.into(),
+            target,
+            url: parsed_url.ok(),
             cookies: KeyValueMap::new(),
             params: KeyValueMap::new()
         }
@@ -521,10 +529,15 @@ impl Request {
         &mut self.params
     }
 
-    /// Gets the target URL
-    pub fn url(&self) -> &str {
-        self.url.as_str()
-    }  
+    /// Gets the target URL as an string
+    pub fn target(&self) -> &str {
+        self.target.as_str()
+    }
+    
+    /// Gets `url::Url` reference if `target` is well-formed
+    pub fn url(&self) -> Option<&Url> {
+        self.url.as_ref()
+    }
 }
 
 impl Deref for Request {
